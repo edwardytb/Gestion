@@ -26,7 +26,7 @@ async function initializeApp() {
             console.warn('⚠️ SweetAlert2 no está disponible');
         }
         
-        // Cargar datos del servidor
+        // Cargar datos localmente (SIN BACKEND)
         await loadDataFromServer();
         
         // Configurar navegación
@@ -110,23 +110,39 @@ function setupEventListeners() {
     });
 }
 
-// Cargar datos del servidor
+// Cargar datos localmente - VERSIÓN NETLIFY (SIN BACKEND)
 async function loadDataFromServer() {
     try {
-        console.log('📥 Cargando datos del servidor...');
+        console.log('📥 Cargando datos localmente...');
         
-        // Cargar métricas
-        const metricsResponse = await fetch('/api/metrics');
-        if (!metricsResponse.ok) throw new Error('Error cargando métricas');
-        metricsData = await metricsResponse.json();
-        console.log('✅ Métricas cargadas:', metricsData);
-
-        // Cargar presupuesto
-        const budgetResponse = await fetch('/api/budget');
-        if (!budgetResponse.ok) throw new Error('Error cargando presupuesto');
-        budgetData = await budgetResponse.json();
-        console.log('✅ Presupuesto cargado:', budgetData);
-
+        // Cargar desde localStorage o usar datos por defecto
+        const savedMetrics = localStorage.getItem('appMetrics');
+        const savedBudget = localStorage.getItem('appBudget');
+        
+        if (savedMetrics && savedBudget) {
+            // Cargar datos guardados
+            metricsData = JSON.parse(savedMetrics);
+            budgetData = JSON.parse(savedBudget);
+            console.log('✅ Datos cargados desde localStorage');
+        } else {
+            // Datos por defecto
+            metricsData = {
+                youtube: { subscribers: 14, views: 181 },
+                tiktok: { likes: 42, followers: 12, following: 5 },
+                instagram: { followers: 12, following: 8, posts: 0 }
+            };
+            
+            budgetData = {
+                transactions: [],
+                totals: { income: 0, expenses: 0, balance: 0 }
+            };
+            
+            // Guardar por primera vez
+            localStorage.setItem('appMetrics', JSON.stringify(metricsData));
+            localStorage.setItem('appBudget', JSON.stringify(budgetData));
+            console.log('✅ Datos iniciales creados y guardados');
+        }
+        
         // Actualizar objetivos con datos reales
         if (metricsData.youtube) {
             objectives.youtube.current = metricsData.youtube.subscribers;
@@ -140,11 +156,20 @@ async function loadDataFromServer() {
         
     } catch (error) {
         console.error('❌ Error cargando datos:', error);
-        throw error;
+        // Datos de emergencia
+        metricsData = {
+            youtube: { subscribers: 14, views: 181 },
+            tiktok: { likes: 42, followers: 12 },
+            instagram: { followers: 12 }
+        };
+        budgetData = { 
+            transactions: [], 
+            totals: { income: 0, expenses: 0, balance: 0 } 
+        };
     }
 }
 
-// Guardar transacción
+// Guardar transacción - VERSIÓN NETLIFY (SIN BACKEND)
 async function saveTransaction() {
     const type = document.getElementById('transaction-type').value;
     const amount = parseFloat(document.getElementById('transaction-amount').value);
@@ -163,53 +188,32 @@ async function saveTransaction() {
         return;
     }
 
-    const transactionData = {
-        type: type,
-        amount: amount,
-        description: description.trim(),
-        category: category,
-        date: date
-    };
-
-    console.log('💾 Guardando transacción:', transactionData);
-
     try {
-        // Mostrar loading
-        if (typeof Swal !== 'undefined') {
-            Swal.fire({
-                title: 'Guardando...',
-                text: 'Por favor espera',
-                allowOutsideClick: false,
-                didOpen: () => {
-                    Swal.showLoading();
-                }
-            });
-        }
+        const newTransaction = {
+            id: budgetData.transactions.length > 0 
+                ? Math.max(...budgetData.transactions.map(t => t.id)) + 1 
+                : 1,
+            type: type,
+            amount: amount,
+            description: description.trim(),
+            category: category,
+            date: date
+        };
 
-        // Enviar al servidor
-        const response = await fetch('/api/transactions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(transactionData)
-        });
+        console.log('💾 Guardando transacción localmente:', newTransaction);
 
-        const result = await response.json();
-
-        if (!response.ok) {
-            throw new Error(result.error || 'Error del servidor');
-        }
-
-        // Cerrar modal
-        document.getElementById('transaction-modal').style.display = 'none';
-
-        // Recargar datos del servidor
-        await loadDataFromServer();
+        // Guardar localmente
+        budgetData.transactions.push(newTransaction);
+        
+        // Persistir en localStorage
+        localStorage.setItem('appBudget', JSON.stringify(budgetData));
         
         // Actualizar interfaz
         updateBudgetSection();
-
+        
+        // Cerrar modal
+        document.getElementById('transaction-modal').style.display = 'none';
+        
         // Mostrar éxito
         if (typeof Swal !== 'undefined') {
             Swal.fire({
@@ -222,69 +226,50 @@ async function saveTransaction() {
             alert('Transacción guardada correctamente');
         }
 
-        console.log('✅ Transacción guardada:', result);
-
     } catch (error) {
         console.error('❌ Error guardando transacción:', error);
-        showError(error.message || 'No se pudo guardar la transacción');
+        showError('No se pudo guardar la transacción: ' + error.message);
     }
 }
 
-// Eliminar transacción
+// Eliminar transacción - VERSIÓN NETLIFY (SIN BACKEND)
 async function deleteTransaction(id) {
-    const result = await Swal.fire({
-        title: '¿Estás seguro?',
-        text: "Esta acción no se puede deshacer",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
-        confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'Cancelar'
-    });
+    if (typeof Swal === 'undefined') {
+        if (!confirm('¿Estás seguro de eliminar esta transacción?')) return;
+    } else {
+        const result = await Swal.fire({
+            title: '¿Estás seguro?',
+            text: "Esta acción no se puede deshacer",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar'
+        });
+        
+        if (!result.isConfirmed) return;
+    }
     
-    if (result.isConfirmed) {
-        try {
-            // Mostrar loading
-            Swal.fire({
-                title: 'Eliminando...',
-                text: 'Por favor espera',
-                allowOutsideClick: false,
-                didOpen: () => {
-                    Swal.showLoading();
-                }
-            });
-
-            // Eliminar del servidor
-            const response = await fetch(`/api/transactions/${id}`, {
-                method: 'DELETE'
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || 'Error del servidor');
-            }
-
-            // Recargar datos del servidor
-            await loadDataFromServer();
-            
-            // Actualizar interfaz
-            updateBudgetSection();
-
-            Swal.fire(
-                '¡Eliminado!',
-                'La transacción ha sido eliminada',
-                'success'
-            );
-
-        } catch (error) {
-            console.error('❌ Error eliminando transacción:', error);
-            Swal.fire(
-                'Error',
-                error.message || 'No se pudo eliminar la transacción',
-                'error'
-            );
+    try {
+        // Eliminar localmente
+        budgetData.transactions = budgetData.transactions.filter(t => t.id !== id);
+        
+        // Guardar en localStorage
+        localStorage.setItem('appBudget', JSON.stringify(budgetData));
+        
+        // Actualizar interfaz
+        updateBudgetSection();
+        
+        if (typeof Swal !== 'undefined') {
+            Swal.fire('¡Eliminado!', 'La transacción ha sido eliminada', 'success');
+        } else {
+            alert('Transacción eliminada correctamente');
         }
+
+    } catch (error) {
+        console.error('❌ Error eliminando transacción:', error);
+        showError('No se pudo eliminar la transacción');
     }
 }
 
