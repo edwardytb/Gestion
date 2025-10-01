@@ -1,0 +1,25 @@
+{
+  "transactions": [
+    {
+      "id": 1,
+      "type": "expense",
+      "amount": 3,
+      "description": "Hosting",
+      "category": "otros",
+      "date": "2025-09-18"
+    },
+    {
+      "id": 2,
+      "type": "expense",
+      "amount": 2,
+      "description": "Publicidad de instagram",
+      "category": "publicidad",
+      "date": "2025-09-20"
+    }
+  ],
+  "totals": {
+    "income": 0,
+    "expenses": 0,
+    "balance": 0
+  }
+}

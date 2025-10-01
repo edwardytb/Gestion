@@ -1,0 +1,16 @@
+{
+  "youtube": {
+    "subscribers": 14,
+    "views": 181
+  },
+  "tiktok": {
+    "likes": 42,
+    "followers": 12,
+    "following": 5
+  },
+  "instagram": {
+    "followers": 12,
+    "following": 8,
+    "posts": 0
+  }
+}
