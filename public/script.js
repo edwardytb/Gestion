@@ -7,6 +7,10 @@ let objectives = {
     tiktok: { current: 12, target: 300 }
 };
 
+// Configuración de JSONBin.io - REEMPLAZA CON TUS DATOS
+const JSONBIN_API_KEY = '$2a$10$QeaXhbUeFPlfsaTGwVQKquKLY6Fb/hv2kjd3qwLLX2jUqnSOtEBFu'; // TU API KEY AQUÍ
+const JSONBIN_BIN_ID = '68dd822143b1c97be957119b'; // TU BIN ID AQUÍ
+
 // Inicialización cuando el DOM está listo
 document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
@@ -26,7 +30,7 @@ async function initializeApp() {
             console.warn('⚠️ SweetAlert2 no está disponible');
         }
         
-        // Cargar datos localmente (SIN BACKEND)
+        // Cargar datos desde JSONBin
         await loadDataFromServer();
         
         // Configurar navegación
@@ -110,66 +114,116 @@ function setupEventListeners() {
     });
 }
 
-// Cargar datos localmente - VERSIÓN NETLIFY (SIN BACKEND)
+// Cargar datos desde JSONBin.io
 async function loadDataFromServer() {
     try {
-        console.log('📥 Cargando datos localmente...');
+        console.log('📥 Cargando datos desde JSONBin...');
         
-        // Cargar desde localStorage o usar datos por defecto
-        const savedMetrics = localStorage.getItem('appMetrics');
-        const savedBudget = localStorage.getItem('appBudget');
+        const response = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
+            method: 'GET',
+            headers: {
+                'X-Master-Key': JSONBIN_API_KEY
+            }
+        });
         
-        if (savedMetrics && savedBudget) {
-            // Cargar datos guardados
-            metricsData = JSON.parse(savedMetrics);
-            budgetData = JSON.parse(savedBudget);
-            console.log('✅ Datos cargados desde localStorage');
-        } else {
-            // Datos por defecto
-            metricsData = {
-                youtube: { subscribers: 14, views: 181 },
-                tiktok: { likes: 42, followers: 12, following: 5 },
-                instagram: { followers: 12, following: 8, posts: 0 }
-            };
-            
-            budgetData = {
-                transactions: [],
-                totals: { income: 0, expenses: 0, balance: 0 }
-            };
-            
-            // Guardar por primera vez
-            localStorage.setItem('appMetrics', JSON.stringify(metricsData));
-            localStorage.setItem('appBudget', JSON.stringify(budgetData));
-            console.log('✅ Datos iniciales creados y guardados');
+        if (!response.ok) {
+            throw new Error(`Error HTTP: ${response.status}`);
         }
         
-        // Actualizar objetivos con datos reales
-        if (metricsData.youtube) {
-            objectives.youtube.current = metricsData.youtube.subscribers;
-        }
-        if (metricsData.instagram) {
-            objectives.instagram.current = metricsData.instagram.followers;
-        }
-        if (metricsData.tiktok) {
-            objectives.tiktok.current = metricsData.tiktok.followers;
-        }
+        const result = await response.json();
+        const data = result.record;
+        
+        console.log('📦 Datos recibidos:', data);
+        
+        // Cargar métricas
+        metricsData = data.metricsData || {
+            youtube: { subscribers: 14, views: 181 },
+            tiktok: { likes: 42, followers: 12, following: 5 },
+            instagram: { followers: 12, following: 8, posts: 0 }
+        };
+        
+        // Cargar presupuesto
+        budgetData = data.budgetData || {
+            transactions: [],
+            totals: { income: 0, expenses: 0, balance: 0 }
+        };
+        
+        console.log('✅ Datos cargados desde JSONBin');
         
     } catch (error) {
-        console.error('❌ Error cargando datos:', error);
-        // Datos de emergencia
+        console.error('❌ Error cargando datos de JSONBin:', error);
+        
+        // Datos por defecto si hay error
         metricsData = {
             youtube: { subscribers: 14, views: 181 },
-            tiktok: { likes: 42, followers: 12 },
-            instagram: { followers: 12 }
+            tiktok: { likes: 42, followers: 12, following: 5 },
+            instagram: { followers: 12, following: 8, posts: 0 }
         };
-        budgetData = { 
-            transactions: [], 
-            totals: { income: 0, expenses: 0, balance: 0 } 
+        
+        budgetData = {
+            transactions: [],
+            totals: { income: 0, expenses: 0, balance: 0 }
         };
+        
+        console.log('🔄 Usando datos por defecto');
+        
+        // Intentar guardar datos por defecto
+        try {
+            await saveDataToServer();
+        } catch (saveError) {
+            console.error('❌ Error guardando datos por defecto:', saveError);
+        }
+    }
+    
+    // Actualizar objetivos con datos reales
+    if (metricsData.youtube) {
+        objectives.youtube.current = metricsData.youtube.subscribers;
+    }
+    if (metricsData.instagram) {
+        objectives.instagram.current = metricsData.instagram.followers;
+    }
+    if (metricsData.tiktok) {
+        objectives.tiktok.current = metricsData.tiktok.followers;
     }
 }
 
-// Guardar transacción - VERSIÓN NETLIFY (SIN BACKEND)
+// Guardar datos en JSONBin.io
+async function saveDataToServer() {
+    try {
+        const dataToSave = {
+            metricsData: metricsData,
+            budgetData: budgetData,
+            lastUpdated: new Date().toISOString()
+        };
+        
+        console.log('💾 Guardando datos en JSONBin:', dataToSave);
+        
+        const response = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Master-Key': JSONBIN_API_KEY,
+                'X-Bin-Versioning': 'false'
+            },
+            body: JSON.stringify(dataToSave)
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Error HTTP: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        console.log('✅ Datos guardados en JSONBin:', result);
+        return true;
+        
+    } catch (error) {
+        console.error('❌ Error guardando en JSONBin:', error);
+        showError('No se pudieron sincronizar los datos con la nube');
+        return false;
+    }
+}
+
+// Guardar transacción
 async function saveTransaction() {
     const type = document.getElementById('transaction-type').value;
     const amount = parseFloat(document.getElementById('transaction-amount').value);
@@ -177,7 +231,7 @@ async function saveTransaction() {
     const category = document.getElementById('transaction-category').value;
     const date = document.getElementById('transaction-date').value;
 
-    // Validación básica
+    // Validación
     if (!amount || amount <= 0) {
         showError('El monto debe ser mayor a 0');
         return;
@@ -189,6 +243,16 @@ async function saveTransaction() {
     }
 
     try {
+        // Mostrar loading
+        Swal.fire({
+            title: 'Guardando...',
+            text: 'Sincronizando con la nube',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
         const newTransaction = {
             id: budgetData.transactions.length > 0 
                 ? Math.max(...budgetData.transactions.map(t => t.id)) + 1 
@@ -200,13 +264,17 @@ async function saveTransaction() {
             date: date
         };
 
-        console.log('💾 Guardando transacción localmente:', newTransaction);
+        console.log('➕ Agregando transacción:', newTransaction);
 
         // Guardar localmente
         budgetData.transactions.push(newTransaction);
         
-        // Persistir en localStorage
-        localStorage.setItem('appBudget', JSON.stringify(budgetData));
+        // Guardar en la nube
+        const saveSuccess = await saveDataToServer();
+        
+        if (!saveSuccess) {
+            throw new Error('Error al sincronizar con la nube');
+        }
         
         // Actualizar interfaz
         updateBudgetSection();
@@ -215,61 +283,104 @@ async function saveTransaction() {
         document.getElementById('transaction-modal').style.display = 'none';
         
         // Mostrar éxito
-        if (typeof Swal !== 'undefined') {
-            Swal.fire({
-                title: '¡Éxito!',
-                text: 'Transacción guardada correctamente',
-                icon: 'success',
-                confirmButtonText: 'Aceptar'
-            });
-        } else {
-            alert('Transacción guardada correctamente');
-        }
+        Swal.fire({
+            title: '¡Éxito!',
+            text: 'Transacción guardada y sincronizada',
+            icon: 'success',
+            confirmButtonText: 'Aceptar'
+        });
 
     } catch (error) {
         console.error('❌ Error guardando transacción:', error);
-        showError('No se pudo guardar la transacción: ' + error.message);
+        Swal.fire({
+            title: 'Error',
+            text: 'No se pudo guardar la transacción: ' + error.message,
+            icon: 'error',
+            confirmButtonText: 'Aceptar'
+        });
     }
 }
 
-// Eliminar transacción - VERSIÓN NETLIFY (SIN BACKEND)
+// Eliminar transacción
 async function deleteTransaction(id) {
-    if (typeof Swal === 'undefined') {
-        if (!confirm('¿Estás seguro de eliminar esta transacción?')) return;
-    } else {
-        const result = await Swal.fire({
-            title: '¿Estás seguro?',
-            text: "Esta acción no se puede deshacer",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#3085d6',
-            confirmButtonText: 'Sí, eliminar',
-            cancelButtonText: 'Cancelar'
-        });
-        
-        if (!result.isConfirmed) return;
-    }
+    const result = await Swal.fire({
+        title: '¿Estás seguro?',
+        text: "Esta acción no se puede deshacer",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar'
+    });
     
+    if (result.isConfirmed) {
+        try {
+            // Mostrar loading
+            Swal.fire({
+                title: 'Eliminando...',
+                text: 'Sincronizando con la nube',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            // Eliminar localmente
+            budgetData.transactions = budgetData.transactions.filter(t => t.id !== id);
+            
+            // Guardar en la nube
+            const saveSuccess = await saveDataToServer();
+            
+            if (!saveSuccess) {
+                throw new Error('Error al sincronizar con la nube');
+            }
+            
+            // Actualizar interfaz
+            updateBudgetSection();
+            
+            Swal.fire(
+                '¡Eliminado!',
+                'Transacción eliminada y sincronizada',
+                'success'
+            );
+
+        } catch (error) {
+            console.error('❌ Error eliminando transacción:', error);
+            Swal.fire(
+                'Error',
+                'No se pudo eliminar la transacción: ' + error.message,
+                'error'
+            );
+        }
+    }
+}
+
+// Actualizar métricas sociales
+async function updateSocialMetrics(platform, newData) {
     try {
-        // Eliminar localmente
-        budgetData.transactions = budgetData.transactions.filter(t => t.id !== id);
+        if (platform === 'youtube') {
+            metricsData.youtube = { ...metricsData.youtube, ...newData };
+            objectives.youtube.current = metricsData.youtube.subscribers;
+        } else if (platform === 'instagram') {
+            metricsData.instagram = { ...metricsData.instagram, ...newData };
+            objectives.instagram.current = metricsData.instagram.followers;
+        } else if (platform === 'tiktok') {
+            metricsData.tiktok = { ...metricsData.tiktok, ...newData };
+            objectives.tiktok.current = metricsData.tiktok.followers;
+        }
         
-        // Guardar en localStorage
-        localStorage.setItem('appBudget', JSON.stringify(budgetData));
+        // Guardar en la nube
+        await saveDataToServer();
         
         // Actualizar interfaz
-        updateBudgetSection();
+        updateDashboard();
+        updateObjectivesSection();
         
-        if (typeof Swal !== 'undefined') {
-            Swal.fire('¡Eliminado!', 'La transacción ha sido eliminada', 'success');
-        } else {
-            alert('Transacción eliminada correctamente');
-        }
-
+        return true;
     } catch (error) {
-        console.error('❌ Error eliminando transacción:', error);
-        showError('No se pudo eliminar la transacción');
+        console.error('❌ Error actualizando métricas:', error);
+        return false;
     }
 }
 
@@ -609,5 +720,63 @@ function showError(message) {
     }
 }
 
+// Función para actualizar métricas de YouTube
+async function updateYouTubeMetrics(subs, views) {
+    try {
+        const success = await updateSocialMetrics('youtube', {
+            subscribers: subs,
+            views: views
+        });
+        
+        if (success) {
+            Swal.fire('¡Éxito!', 'Métricas de YouTube actualizadas', 'success');
+        } else {
+            throw new Error('Error al actualizar');
+        }
+    } catch (error) {
+        Swal.fire('Error', 'No se pudieron actualizar las métricas', 'error');
+    }
+}
+
+// Función para actualizar métricas de Instagram
+async function updateInstagramMetrics(followers, posts) {
+    try {
+        const success = await updateSocialMetrics('instagram', {
+            followers: followers,
+            posts: posts
+        });
+        
+        if (success) {
+            Swal.fire('¡Éxito!', 'Métricas de Instagram actualizadas', 'success');
+        } else {
+            throw new Error('Error al actualizar');
+        }
+    } catch (error) {
+        Swal.fire('Error', 'No se pudieron actualizar las métricas', 'error');
+    }
+}
+
+// Función para actualizar métricas de TikTok
+async function updateTikTokMetrics(followers, likes) {
+    try {
+        const success = await updateSocialMetrics('tiktok', {
+            followers: followers,
+            likes: likes
+        });
+        
+        if (success) {
+            Swal.fire('¡Éxito!', 'Métricas de TikTok actualizadas', 'success');
+        } else {
+            throw new Error('Error al actualizar');
+        }
+    } catch (error) {
+        Swal.fire('Error', 'No se pudieron actualizar las métricas', 'error');
+    }
+}
+
 // Hacer funciones globales para que puedan ser llamadas desde HTML
 window.deleteTransaction = deleteTransaction;
+window.updateSocialMetrics = updateSocialMetrics;
+window.updateYouTubeMetrics = updateYouTubeMetrics;
+window.updateInstagramMetrics = updateInstagramMetrics;
+window.updateTikTokMetrics = updateTikTokMetrics;
